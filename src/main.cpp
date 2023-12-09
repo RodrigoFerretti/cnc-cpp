@@ -53,6 +53,8 @@ Config config = {
 
 void setup()
 {
+    Serial.begin(115200);
+
     for (const auto &axis : {
              &config.x,
              &config.y,
@@ -64,9 +66,6 @@ void setup()
 
         stepper.setMaxSpeed(axis->max);
 
-        stepper.moveTo(1000000);
-        stepper.setSpeed(axis->max);
-
         axis->stepper = stepper;
 
         pinMode(axis->hom, INPUT_PULLDOWN);
@@ -76,6 +75,12 @@ void setup()
 
 void loop()
 {
+    if (Serial.available() > 0)
+    {
+        String gCodeCommand = Serial.readStringUntil('\n');
+        processGCode(gCodeCommand);
+    }
+
     for (const auto &axis : {
              &config.x,
              &config.y,
@@ -85,4 +90,37 @@ void loop()
     {
         axis->stepper.runSpeedToPosition();
     }
+}
+
+void processGCode(String command)
+{
+    char commandType = command.charAt(0);
+    command.remove(0, 1);
+
+    switch (commandType)
+    {
+    case 'G':
+        if (command.startsWith("01"))
+        {
+            processG01(command.substring(2));
+        }
+
+        break;
+    }
+}
+
+void processG01(String parameters)
+{
+    int xIndex = parameters.indexOf('X');
+    int yIndex = parameters.indexOf('Y');
+    int zIndex = parameters.indexOf('Z');
+
+    float x = (xIndex != -1) ? parameters.substring(xIndex + 1, yIndex).toFloat() : 0.0;
+    float y = (yIndex != -1) ? parameters.substring(yIndex + 1, zIndex).toFloat() : 0.0;
+    float z = (zIndex != -1) ? parameters.substring(zIndex + 1).toFloat() : 0.0;
+
+    config.x.stepper.moveTo(x);
+    config.y.stepper.moveTo(y);
+    config.z.stepper.moveTo(z);
+    config.a.stepper.moveTo(x);
 }
